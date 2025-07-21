@@ -44,20 +44,39 @@ impl HooksManager {
     }
     
     pub fn show_hooks_status() -> Result<()> {
-        println!("Git-Warp Hooks Status:");
-        println!("======================");
+        println!("🔧 Git-Warp Claude Code Integration Status");
+        println!("==========================================");
         
-        // Check user level
-        if let Ok(user_path) = Self::get_user_settings_path() {
-            println!("\nUser Level (~/.claude/settings.json):");
-            Self::show_hooks_for_path(&user_path)?;
+        // Check user level settings
+        match Self::get_user_settings_path() {
+            Ok(path) => {
+                if path.exists() {
+                    println!("✅ User settings: {}", path.display());
+                    Self::show_hooks_for_path(&path)?;
+                } else {
+                    println!("❌ User settings: Not found");
+                }
+            }
+            Err(_) => println!("❌ User settings: Unable to locate"),
         }
         
-        // Check project level
-        if let Ok(project_path) = Self::get_project_settings_path() {
-            println!("\nProject Level (./.claude/settings.json):");
-            Self::show_hooks_for_path(&project_path)?;
+        // Check project level settings
+        match Self::get_project_settings_path() {
+            Ok(path) => {
+                if path.exists() {
+                    println!("✅ Project settings: {}", path.display());
+                    Self::show_hooks_for_path(&path)?;
+                } else {
+                    println!("❌ Project settings: Not found");
+                }
+            }
+            Err(_) => println!("❌ Project settings: Unable to locate"),
         }
+        
+        println!("\n📖 Integration Guide:");
+        println!("   warp hooks-install user    # Install for all projects");
+        println!("   warp hooks-install project # Install for current project only");
+        println!("   warp hooks-install console # Show JSON to copy manually");
         
         Ok(())
     }

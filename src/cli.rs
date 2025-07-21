@@ -611,31 +611,35 @@ impl Cli {
     }
     
     fn handle_hooks_install(&self, level: Option<&str>) -> Result<()> {
+        use crate::hooks::HooksManager;
+        
         info!("Installing hooks at level: {:?}", level);
         if self.dry_run {
-            println!("Would install hooks");
+            println!("Would install Git-Warp hooks at level: {:?}", level.unwrap_or("console"));
             return Ok(());
         }
         
-        println!("🚧 Hooks install not yet implemented");
-        Ok(())
+        HooksManager::install_hooks(level)
     }
     
     fn handle_hooks_remove(&self, level: Option<&str>) -> Result<()> {
+        use crate::hooks::HooksManager;
+        
         info!("Removing hooks at level: {:?}", level);
         if self.dry_run {
-            println!("Would remove hooks");
+            println!("Would remove Git-Warp hooks at level: {:?}", level.unwrap_or("user"));
             return Ok(());
         }
         
-        println!("🚧 Hooks remove not yet implemented");
-        Ok(())
+        let level = level.unwrap_or("user");
+        HooksManager::remove_hooks(level)
     }
     
     fn handle_hooks_status(&self) -> Result<()> {
+        use crate::hooks::HooksManager;
+        
         info!("Checking hooks status");
-        println!("🚧 Hooks status not yet implemented");
-        Ok(())
+        HooksManager::show_hooks_status()
     }
     
     fn handle_shell_config(&self, shell: Option<&str>) -> Result<()> {
