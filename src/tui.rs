@@ -337,11 +337,160 @@ impl CleanupTui {
     }
     
     pub fn run(&self) -> Result<Vec<String>> {
-        let mut app = TuiApp::new();
-        app.run()?;
-        
-        // TODO: Return selected worktrees for cleanup
-        Ok(vec![])
+        use crate::git::GitRepository;
+        use crossterm::{
+            event::{self, Event, KeyCode, KeyEventKind},
+            execute,
+            terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        };
+        use ratatui::{
+            backend::CrosstermBackend,
+            layout::{Alignment, Constraint, Direction, Layout},
+            style::{Color, Style},
+            widgets::{Block, Borders, List, ListItem, Paragraph},
+            Terminal,
+        };
+        use std::io;
+
+        // Get the git repository and worktrees
+        let git_repo = GitRepository::find()
+            .map_err(|_| anyhow::anyhow!("Not in a git repository"))?;
+        let worktrees = git_repo.list_worktrees()?;
+        let branch_statuses = git_repo.analyze_branches_for_cleanup(&worktrees)?;
+
+        if branch_statuses.is_empty() {
+            println!("✨ No worktrees found that can be cleaned up!");
+            return Ok(vec![]);
+        }
+
+        // Setup terminal
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let mut selected_index = 0;
+        let mut selected_branches: Vec<bool> = vec![false; branch_statuses.len()];
+        let mut should_quit = false;
+        let mut confirmed = false;
+
+        let result = loop {
+            terminal.draw(|f| {
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .margin(1)
+                    .constraints([
+                        Constraint::Length(3),
+                        Constraint::Min(0),
+                        Constraint::Length(4),
+                    ])
+                    .split(f.size());
+
+                // Header
+                let header = Paragraph::new("🧹 Interactive Worktree Cleanup")
+                    .style(Style::default().fg(Color::Yellow))
+                    .alignment(Alignment::Center)
+                    .block(Block::default().borders(Borders::ALL));
+                f.render_widget(header, chunks[0]);
+
+                // Branch list
+                let items: Vec<ListItem> = branch_statuses
+                    .iter()
+                    .enumerate()
+                    .map(|(i, status)| {
+                        let checkbox = if selected_branches[i] { "☑️" } else { "☐" };
+                        let merged_indicator = if status.is_merged { "✅" } else { "🔄" };
+                        let style = if i == selected_index {
+                            Style::default().bg(Color::Blue).fg(Color::White)
+                        } else {
+                            Style::default()
+                        };
+                        
+                        ListItem::new(format!(
+                            "{} {} {} - {}{}",
+                            checkbox,
+                            merged_indicator,
+                            status.branch,
+                            if status.has_remote { "with remote" } else { "no remote" },
+                            if status.has_uncommitted_changes { " (uncommitted)" } else { "" }
+                        )).style(style)
+                    })
+                    .collect();
+
+                let list = List::new(items)
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title("Select branches to clean up (Space to select, Enter to confirm)"));
+                f.render_widget(list, chunks[1]);
+
+                // Footer with controls
+                let selected_count = selected_branches.iter().filter(|&&x| x).count();
+                let footer_text = format!(
+                    "↑↓: Navigate | Space: Select | Enter: Confirm ({} selected) | q: Quit",
+                    selected_count
+                );
+                let footer = Paragraph::new(footer_text)
+                    .style(Style::default().fg(Color::Gray))
+                    .alignment(Alignment::Center)
+                    .block(Block::default().borders(Borders::ALL).title("Controls"));
+                f.render_widget(footer, chunks[2]);
+            })?;
+
+            // Handle input
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            should_quit = true;
+                            break;
+                        }
+                        KeyCode::Up => {
+                            if selected_index > 0 {
+                                selected_index -= 1;
+                            }
+                        }
+                        KeyCode::Down => {
+                            if selected_index < branch_statuses.len() - 1 {
+                                selected_index += 1;
+                            }
+                        }
+                        KeyCode::Char(' ') => {
+                            selected_branches[selected_index] = !selected_branches[selected_index];
+                        }
+                        KeyCode::Enter => {
+                            confirmed = true;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        };
+
+        // Cleanup terminal
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        terminal.show_cursor()?;
+
+        if should_quit || !confirmed {
+            return Ok(vec![]);
+        }
+
+        // Return selected branches
+        let selected: Vec<String> = branch_statuses
+            .iter()
+            .enumerate()
+            .filter_map(|(i, status)| {
+                if selected_branches[i] {
+                    Some(status.branch.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(selected)
     }
 }
 
@@ -353,6 +502,13 @@ impl ConfigTui {
     }
     
     pub fn run(&self) -> Result<()> {
+        println!("⚙️ Configuration Editor");
+        println!("=======================");
+        println!("📝 Interactive config editor coming in v0.3.1");
+        println!("💡 For now, use: warp config --show");
+        println!("💡 Edit config file at: ~/.config/git-warp/config.toml");
+        
+        // Show current TUI for demonstration
         let mut app = TuiApp::new();
         app.run()
     }

@@ -385,9 +385,26 @@ impl Cli {
         }
         
         if interactive {
-            println!("\n🤖 Interactive cleanup not yet implemented");
-            println!("💡 Use --mode with specific criteria for now");
-            return Ok(());
+            use crate::tui::CleanupTui;
+            
+            println!("\n🤖 Starting interactive cleanup...");
+            let cleanup_tui = CleanupTui::new();
+            let selected_branches = cleanup_tui.run()?;
+            
+            if selected_branches.is_empty() {
+                println!("❌ No branches selected for cleanup");
+                return Ok(());
+            }
+            
+            // Update candidates to only include selected branches
+            candidates.retain(|c| selected_branches.contains(&c.branch));
+            
+            if candidates.is_empty() {
+                println!("✨ No matching candidates found");
+                return Ok(());
+            }
+            
+            println!("✅ Selected {} branches for cleanup", selected_branches.len());
         }
         
         // Confirm unless auto-confirmed
